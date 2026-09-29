@@ -4,6 +4,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,8 +32,13 @@ class Telemetry(BaseModel):
     temp_rate_c_per_min: float
 
 
-@app.get("/")
-def root() -> dict:
+@app.get("/", response_class=FileResponse)
+def root() -> FileResponse:
+    return FileResponse(ROOT / "app" / "dashboard.html")
+
+
+@app.get("/health")
+def health() -> dict:
     return {"status": "ok", "message": "Industrial overheat prediction API"}
 
 
