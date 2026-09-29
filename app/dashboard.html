@@ -175,7 +175,7 @@
             <div class="metric"><div class="metric-label">ВИБРАЦИЯ</div><div class="metric-value" id="metric-vibration">—</div></div>
           </div>
           <div class="chart-wrap"><canvas id="risk-chart" aria-label="График риска перегрева"></canvas></div>
-          <div class="chart-legend"><span>Риск за последние 20 измерений</span><span class="threshold-key">--- порог 68%</span></div>
+          <div class="chart-legend"><span>Риск за последние 20 измерений</span><span class="threshold-key">--- порог модели</span></div>
         </section>
         <aside class="card insight-card">
           <div class="insight-section">
@@ -232,7 +232,7 @@
     <p class="footer-note">Демонстрационный проект · синтетические данные · модель не управляет оборудованием</p>
   </main>
   <script>
-    const threshold = 0.68;
+    let threshold = 0.68;
     const machineConfigs = {
       'M-01': { zone: 'Линия формования', spindle: 69, bearing: 62, load: 66, vibration: 1.35, wear: 28, hours: 58, rpm: 1780 },
       'M-02': { zone: 'Участок обработки', spindle: 79, bearing: 72, load: 81, vibration: 2.25, wear: 63, hours: 148, rpm: 1910 },
@@ -269,6 +269,8 @@
       const response = await fetch('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(telemetry(machine)) });
       if (!response.ok) throw new Error('API временно недоступен');
       const result = await response.json();
+      threshold = result.decision_threshold;
+      document.querySelector('.threshold-key').textContent = `--- порог ${(threshold * 100).toFixed(0)}%`;
       machine.risk = result.overheat_probability; machine.history.push(machine.risk); machine.history = machine.history.slice(-20);
     }
     function renderFleet() {

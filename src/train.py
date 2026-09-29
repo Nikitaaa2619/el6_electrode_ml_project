@@ -55,7 +55,9 @@ FEATURES = [
 def build_threshold_table(y_true: pd.Series, proba: np.ndarray) -> pd.DataFrame:
     """Calculate validation metrics for a readable grid of decision thresholds."""
     rows = []
-    for threshold in np.arange(0.05, 0.951, 0.01):
+    # Two-percentage-point steps avoid selecting a threshold on insignificant
+    # floating-point differences between macOS and Linux builds.
+    for threshold in np.arange(0.06, 0.951, 0.02):
         pred = (proba >= threshold).astype(int)
         matrix = confusion_matrix(y_true, pred, labels=[0, 1])
         true_negative, false_positive, false_negative, true_positive = matrix.ravel()
@@ -91,7 +93,7 @@ def save_threshold_plot(table: pd.DataFrame, selected_threshold: float) -> None:
     ax.set_title("Выбор порога на валидационной части")
     ax.set_xlabel("Порог предупреждения")
     ax.set_ylabel("Значение метрики")
-    ax.set_xlim(0.05, 0.95)
+    ax.set_xlim(0.06, 0.94)
     ax.set_ylim(0, 1.02)
     ax.grid(alpha=0.2)
     ax.legend()
@@ -144,7 +146,8 @@ def main() -> None:
         min_samples_leaf=5,
         class_weight="balanced",
         random_state=42,
-        n_jobs=-1,
+        # One worker keeps tree ordering reproducible across local and cloud builds.
+        n_jobs=1,
     )
     model.fit(X_train, y_train)
 

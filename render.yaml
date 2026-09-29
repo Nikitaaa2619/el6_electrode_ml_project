@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: el6-electrode-ml
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
