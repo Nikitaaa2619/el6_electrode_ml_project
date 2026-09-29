@@ -9,6 +9,7 @@ from sklearn.metrics import classification_report, confusion_matrix, average_pre
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "telemetry.csv"
 MODEL = ROOT / "models" / "model.joblib"
+FORECAST_HORIZON_MINUTES = 10
 
 FEATURES = [
     "electrode_diameter_mm",
@@ -31,9 +32,17 @@ def main() -> None:
     df = pd.read_csv(DATA, parse_dates=["timestamp"]).sort_values("timestamp")
 
     # Chronological split: no random shuffle, because this is a time-dependent industrial task.
+    # Labels use the next 10 minutes, so the gap prevents the training label window
+    # from reaching into the test period.
     split = int(len(df) * 0.80)
+    test_start = split + FORECAST_HORIZON_MINUTES
     train = df.iloc[:split]
-    test = df.iloc[split:]
+    test = df.iloc[test_start:]
+
+    print(
+        f"Time split: {len(train):,} train rows, "
+        f"{FORECAST_HORIZON_MINUTES}-minute gap, {len(test):,} test rows"
+    )
 
     X_train, y_train = train[FEATURES], train["overheat_next_10min"]
     X_test, y_test = test[FEATURES], test["overheat_next_10min"]
