@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = joblib.load(ROOT / "models" / "model.joblib")
 MODEL = ARTIFACT["model"]
 FEATURES = ARTIFACT["features"]
+DECISION_THRESHOLD = ARTIFACT.get("threshold", 0.5)
 
 app = FastAPI(title="Industrial Overheat Prediction API")
 
@@ -41,6 +42,7 @@ def predict(payload: Telemetry) -> dict:
     probability = float(MODEL.predict_proba(row)[0, 1])
     return {
         "overheat_probability": round(probability, 4),
-        "warning": probability >= 0.5,
+        "decision_threshold": DECISION_THRESHOLD,
+        "warning": probability >= DECISION_THRESHOLD,
         "note": "Educational simulation only; not a real machine-control system.",
     }
