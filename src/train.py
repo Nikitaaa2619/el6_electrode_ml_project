@@ -34,10 +34,12 @@ def main() -> None:
     # Chronological split: no random shuffle, because this is a time-dependent industrial task.
     # Labels use the next 10 minutes, so the gap prevents the training label window
     # from reaching into the test period.
-    split = int(len(df) * 0.80)
-    test_start = split + FORECAST_HORIZON_MINUTES
-    train = df.iloc[:split]
-    test = df.iloc[test_start:]
+    timestamps = df["timestamp"].drop_duplicates().sort_values().to_numpy()
+    split = int(len(timestamps) * 0.80)
+    train_end = timestamps[split - 1]
+    test_start = timestamps[split + FORECAST_HORIZON_MINUTES]
+    train = df[df["timestamp"] <= train_end]
+    test = df[df["timestamp"] >= test_start]
 
     print(
         f"Time split: {len(train):,} train rows, "
@@ -46,6 +48,10 @@ def main() -> None:
 
     X_train, y_train = train[FEATURES], train["overheat_next_10min"]
     X_test, y_test = test[FEATURES], test["overheat_next_10min"]
+
+    print(f"Train risk share: {y_train.mean():.3%}")
+    print(f"Test risk share : {y_test.mean():.3%}")
+    print(f"No-risk baseline accuracy: {(y_test == 0).mean():.3f}")
 
     model = RandomForestClassifier(
         n_estimators=250,
