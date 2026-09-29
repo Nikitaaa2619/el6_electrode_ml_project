@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Контроль перегрева оборудования</title>
+  <title>EL6 Predictive Maintenance</title>
   <style>
     :root {
       color-scheme: dark;
       --bg: #07111f;
-      --panel: rgba(17, 31, 50, 0.88);
+      --panel: rgba(17, 31, 50, .9);
       --panel-strong: #13243a;
       --line: #29405d;
       --text: #edf5ff;
@@ -19,50 +19,98 @@
       --danger: #ff6b70;
       --warning: #ffc761;
     }
-
     * { box-sizing: border-box; }
-
     body {
-      margin: 0;
-      min-height: 100vh;
+      margin: 0; min-height: 100vh;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--text);
-      background:
-        radial-gradient(circle at 12% 5%, rgba(54, 216, 196, 0.15), transparent 28rem),
-        radial-gradient(circle at 88% 0%, rgba(77, 141, 255, 0.18), transparent 30rem),
-        var(--bg);
+      background: radial-gradient(circle at 12% 5%, rgba(54, 216, 196, .15), transparent 28rem), radial-gradient(circle at 88% 0%, rgba(77, 141, 255, .18), transparent 30rem), var(--bg);
     }
-
-    .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 36px 0 48px; }
-    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 28px; }
+    .shell { width: min(1220px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 50px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 24px; }
     .eyebrow { color: var(--cyan); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-    h1 { max-width: 720px; margin: 8px 0 10px; font-size: clamp(30px, 5vw, 52px); line-height: 1.04; letter-spacing: -.04em; }
-    .lead { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.6; }
+    h1 { max-width: 760px; margin: 8px 0 10px; font-size: clamp(30px, 5vw, 52px); line-height: 1.04; letter-spacing: -.04em; }
+    .lead { max-width: 720px; margin: 0; color: var(--muted); line-height: 1.6; }
     .api-link { flex: 0 0 auto; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); text-decoration: none; }
     .api-link:hover { color: var(--text); border-color: var(--blue); }
-
-    .layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, .75fr); gap: 20px; align-items: start; }
+    button { border: 0; border-radius: 11px; padding: 13px 18px; font: inherit; font-weight: 750; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: .65; }
+    .primary { flex: 1; color: #04111b; background: linear-gradient(135deg, var(--cyan), #60a7ff); }
+    .secondary { color: var(--text); background: #1b304a; border: 1px solid var(--line); }
+    .danger-button { width: 100%; color: #fff; background: linear-gradient(135deg, #e94955, #ff8d62); }
+    .danger-button.running { animation: glow 1s infinite alternate; }
+    @keyframes glow { to { box-shadow: 0 0 24px rgba(255,107,112,.45); } }
+    .view-switcher { display: inline-flex; gap: 5px; padding: 5px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 14px; background: rgba(9, 21, 36, .75); }
+    .view-switcher button { padding: 10px 15px; color: var(--muted); background: transparent; }
+    .view-switcher button.active { color: var(--text); background: var(--panel-strong); box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+    .view { display: none; }
+    .view.active { display: block; }
     .card { border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: 0 20px 70px rgba(0, 0, 0, .25); backdrop-filter: blur(14px); }
+    .section-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin: 2px 0 14px; }
+    .section-heading h2 { margin: 0; font-size: 18px; }
+    .live-label { display: flex; align-items: center; gap: 8px; color: var(--safe); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .live-label .dot { animation: pulse 1.5s infinite; }
+    @keyframes pulse { 50% { opacity: .35; transform: scale(.75); } }
+    .fleet-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .machine-card { position: relative; min-height: 138px; padding: 18px; color: inherit; text-align: left; border: 1px solid var(--line); border-radius: 17px; background: rgba(17,31,50,.76); overflow: hidden; }
+    .machine-card::after { position: absolute; inset: auto 0 0; height: 3px; content: ""; background: var(--safe); }
+    .machine-card:hover, .machine-card.selected { border-color: #4d6687; transform: translateY(-1px); }
+    .machine-card.warning::after { background: var(--warning); }
+    .machine-card.danger::after { background: var(--danger); }
+    .machine-card-top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .machine-name { font-size: 17px; font-weight: 800; }
+    .machine-zone { margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 500; }
+    .risk-value { margin-top: 20px; font-size: 29px; font-weight: 850; letter-spacing: -.04em; }
+    .machine-card.safe .risk-value { color: var(--safe); }
+    .machine-card.warning .risk-value { color: var(--warning); }
+    .machine-card.danger .risk-value { color: var(--danger); }
+    .mini-status { padding: 5px 8px; border-radius: 999px; color: var(--safe); background: rgba(82,223,160,.1); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+    .warning .mini-status { color: var(--warning); background: rgba(255,199,97,.1); }
+    .danger .mini-status { color: var(--danger); background: rgba(255,107,112,.1); }
+    .live-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .75fr); gap: 20px; align-items: start; }
+    .monitor-card { padding: 22px; }
+    .monitor-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+    .monitor-title { margin: 0; font-size: 22px; }
+    .monitor-subtitle { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    .clock { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+    .metric { padding: 13px; border: 1px solid rgba(41,64,93,.7); border-radius: 12px; background: rgba(7,17,31,.48); }
+    .metric-label { color: var(--muted); font-size: 11px; }
+    .metric-value { margin-top: 6px; font-size: 21px; font-weight: 800; }
+    .chart-wrap { height: 250px; padding: 12px 12px 7px; border: 1px solid rgba(41,64,93,.7); border-radius: 14px; background: rgba(7,17,31,.48); }
+    canvas { display: block; width: 100%; height: 100%; }
+    .chart-legend { display: flex; justify-content: space-between; margin-top: 10px; color: var(--muted); font-size: 11px; }
+    .threshold-key { color: var(--danger); }
+    .insight-card { position: sticky; top: 18px; overflow: hidden; }
+    .insight-section { padding: 20px; border-bottom: 1px solid var(--line); }
+    .insight-section:last-child { border-bottom: 0; }
+    .insight-title { margin: 0 0 13px; font-size: 15px; }
+    .big-risk { margin: 5px 0; font-size: 52px; font-weight: 900; line-height: 1; letter-spacing: -.06em; }
+    .big-risk.safe { color: var(--safe); }
+    .big-risk.warning { color: var(--warning); }
+    .big-risk.danger { color: var(--danger); }
+    .risk-caption { color: var(--muted); font-size: 12px; }
+    .factors { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .factor { display: flex; gap: 9px; align-items: flex-start; color: #c9d6e5; font-size: 13px; line-height: 1.4; }
+    .factor-mark { flex: 0 0 auto; width: 7px; height: 7px; margin-top: 5px; border-radius: 50%; background: var(--warning); }
+    .action-copy { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .event { margin-top: 12px; min-height: 36px; color: #c9d6e5; font-size: 12px; line-height: 1.5; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, .75fr); gap: 20px; align-items: start; }
     .form-card { padding: 24px; }
     .card-title { margin: 0; font-size: 20px; }
     .card-copy { margin: 7px 0 22px; color: var(--muted); font-size: 14px; }
     .group-title { grid-column: 1 / -1; margin: 14px 0 -2px; color: #bfd0e4; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
     .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
     label { display: grid; gap: 7px; color: #b7c7da; font-size: 13px; }
-    input {
-      width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px;
-      outline: none; background: #0a1728; color: var(--text); font: inherit; transition: border-color .2s, box-shadow .2s;
-    }
-    input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(54, 216, 196, .12); }
+    input { width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; outline: none; background: #0a1728; color: var(--text); font: inherit; transition: border-color .2s, box-shadow .2s; }
+    input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(54,216,196,.12); }
     .actions { display: flex; gap: 10px; margin-top: 24px; }
-    button { border: 0; border-radius: 11px; padding: 13px 18px; font: inherit; font-weight: 750; cursor: pointer; }
-    .primary { flex: 1; color: #04111b; background: linear-gradient(135deg, var(--cyan), #60a7ff); }
-    .secondary { color: var(--text); background: #1b304a; border: 1px solid var(--line); }
-    button:disabled { cursor: wait; opacity: .65; }
-
     .result-card { position: sticky; top: 20px; overflow: hidden; }
     .result-top { padding: 24px; border-bottom: 1px solid var(--line); }
-    .status { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 999px; background: rgba(146, 167, 192, .12); color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .status { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 999px; background: rgba(146,167,192,.12); color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .status.safe { color: var(--safe); background: rgba(82,223,160,.1); }
+    .status.warning { color: var(--warning); background: rgba(255,199,97,.1); }
+    .status.danger { color: var(--danger); background: rgba(255,107,112,.1); }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
     .probability { margin: 26px 0 4px; font-size: 62px; font-weight: 850; line-height: 1; letter-spacing: -.06em; }
     .probability-label { color: var(--muted); font-size: 14px; }
@@ -71,24 +119,29 @@
     .threshold { color: var(--muted); font-size: 12px; }
     .message { min-height: 66px; padding: 20px 24px; color: #c9d6e5; line-height: 1.5; }
     .disclaimer { margin: 0 24px 24px; padding: 13px; border-radius: 10px; color: var(--muted); background: rgba(255,255,255,.035); font-size: 12px; line-height: 1.5; }
-    .safe .status { color: var(--safe); background: rgba(82, 223, 160, .1); }
-    .safe .probability { color: var(--safe); }
-    .danger .status { color: var(--danger); background: rgba(255, 107, 112, .1); }
-    .danger .probability { color: var(--danger); }
-    .error .status, .error .probability { color: var(--warning); }
-
-    @media (max-width: 880px) {
-      .layout { grid-template-columns: 1fr; }
-      .result-card { position: static; }
+    .result-card.safe .status { color: var(--safe); background: rgba(82,223,160,.1); }
+    .result-card.safe .probability { color: var(--safe); }
+    .result-card.danger .status { color: var(--danger); background: rgba(255,107,112,.1); }
+    .result-card.danger .probability { color: var(--danger); }
+    .result-card.error .status, .result-card.error .probability { color: var(--warning); }
+    .footer-note { margin-top: 18px; color: var(--muted); font-size: 11px; text-align: center; }
+    @media (max-width: 920px) {
+      .live-layout, .layout { grid-template-columns: 1fr; }
+      .insight-card, .result-card { position: static; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    @media (max-width: 560px) {
-      .shell { width: min(100% - 20px, 1180px); padding-top: 24px; }
+    @media (max-width: 650px) {
+      .shell { width: min(100% - 20px, 1220px); padding-top: 24px; }
       header { display: block; }
       .api-link { display: inline-block; margin-top: 16px; }
+      .fleet-grid { grid-template-columns: 1fr; }
+      .machine-card { min-height: 112px; }
       .form-grid { grid-template-columns: 1fr; }
-      .form-card { padding: 18px; }
+      .form-card, .monitor-card { padding: 18px; }
       .actions { flex-direction: column; }
+      .view-switcher { display: flex; }
+      .view-switcher button { flex: 1; font-size: 12px; }
     }
   </style>
 </head>
@@ -97,108 +150,211 @@
     <header>
       <div>
         <div class="eyebrow">EL6 · Predictive maintenance</div>
-        <h1>Прогноз перегрева оборудования</h1>
-        <p class="lead">Введите текущие показатели станка. Модель оценит вероятность перегрева в следующие 10 минут.</p>
+        <h1>Контроль перегрева оборудования</h1>
+        <p class="lead">Модель оценивает риск перегрева в следующие 10 минут по текущей телеметрии станков.</p>
       </div>
       <a class="api-link" href="/docs">API /docs →</a>
     </header>
-
-    <div class="layout">
-      <section class="card form-card">
-        <h2 class="card-title">Телеметрия станка</h2>
-        <p class="card-copy">В форме уже стоят примерные рабочие значения. Их можно изменить.</p>
-        <form id="telemetry-form">
-          <div class="form-grid">
-            <div class="group-title">Режим работы</div>
-            <label>Диаметр электрода, мм<input name="electrode_diameter_mm" type="number" min="0.1" step="0.1" value="200" required></label>
-            <label>Скорость шпинделя, об/мин<input name="spindle_rpm" type="number" min="0" step="1" value="1834" required></label>
-            <label>Нагрузка, %<input name="load_pct" type="number" min="0" max="100" step="0.1" value="74.9" required></label>
-            <label>Ток двигателя, А<input name="motor_current_a" type="number" min="0" step="0.1" value="21.3" required></label>
-            <label>Давление, бар<input name="pressure_bar" type="number" min="0" step="0.1" value="2.7" required></label>
-            <label>Вибрация RMS<input name="vibration_rms" type="number" min="0" step="0.01" value="2.6" required></label>
-
-            <div class="group-title">Температуры</div>
-            <label>Температура воздуха, °C<input name="ambient_temp_c" type="number" step="0.1" value="19.5" required></label>
-            <label>Температура охлаждения, °C<input name="coolant_temp_c" type="number" step="0.1" value="37.3" required></label>
-            <label>Температура подшипника, °C<input name="bearing_temp_c" type="number" step="0.1" value="65" required></label>
-            <label>Температура шпинделя, °C<input name="spindle_temp_c" type="number" step="0.1" value="70.8" required></label>
-            <label>Рост температуры, °C/мин<input name="temp_rate_c_per_min" type="number" step="0.01" value="0" required></label>
-
-            <div class="group-title">Обслуживание</div>
-            <label>Часы после обслуживания<input name="operating_hours_since_service" type="number" min="0" step="0.1" value="115.3" required></label>
-            <label>Износ инструмента, %<input name="tool_wear_pct" type="number" min="0" max="100" step="0.1" value="7.7" required></label>
+    <nav class="view-switcher" aria-label="Режим интерфейса">
+      <button class="active" type="button" data-view="live-view">● Live Monitoring</button>
+      <button type="button" data-view="manual-view">Ручной прогноз</button>
+    </nav>
+    <section class="view active" id="live-view">
+      <div class="section-heading"><h2>Производственная линия</h2><div class="live-label"><span class="dot"></span>Телеметрия поступает</div></div>
+      <div class="fleet-grid" id="fleet-grid"></div>
+      <div class="live-layout">
+        <section class="card monitor-card">
+          <div class="monitor-head">
+            <div><h2 class="monitor-title" id="monitor-title">Станок M-01</h2><p class="monitor-subtitle" id="monitor-subtitle">Линия формования · текущая смена</p></div>
+            <div class="clock" id="live-clock">--:--:--</div>
           </div>
-          <div class="actions">
-            <button class="primary" id="submit-button" type="submit">Рассчитать риск</button>
-            <button class="secondary" type="reset">Вернуть пример</button>
+          <div class="metrics">
+            <div class="metric"><div class="metric-label">ШПИНДЕЛЬ</div><div class="metric-value" id="metric-spindle">—</div></div>
+            <div class="metric"><div class="metric-label">ПОДШИПНИК</div><div class="metric-value" id="metric-bearing">—</div></div>
+            <div class="metric"><div class="metric-label">НАГРУЗКА</div><div class="metric-value" id="metric-load">—</div></div>
+            <div class="metric"><div class="metric-label">ВИБРАЦИЯ</div><div class="metric-value" id="metric-vibration">—</div></div>
           </div>
-        </form>
-      </section>
-
-      <aside class="card result-card" id="result-card" aria-live="polite">
-        <div class="result-top">
-          <div class="status"><span class="dot"></span><span id="status-text">Ожидает расчёта</span></div>
-          <div class="probability" id="probability">—</div>
-          <div class="probability-label">вероятность перегрева</div>
-          <div class="meter"><div class="meter-fill" id="meter-fill"></div></div>
-          <div class="threshold" id="threshold">Порог предупреждения: 68%</div>
-        </div>
-        <div class="message" id="result-message">Заполните показатели и нажмите «Рассчитать риск».</div>
-        <p class="disclaimer">Учебная модель на синтетических данных. Результат нельзя использовать для управления реальным оборудованием.</p>
-      </aside>
-    </div>
+          <div class="chart-wrap"><canvas id="risk-chart" aria-label="График риска перегрева"></canvas></div>
+          <div class="chart-legend"><span>Риск за последние 20 измерений</span><span class="threshold-key">--- порог 68%</span></div>
+        </section>
+        <aside class="card insight-card">
+          <div class="insight-section">
+            <div class="status" id="live-status"><span class="dot"></span><span>Подключение</span></div>
+            <div class="big-risk" id="live-risk">—</div><div class="risk-caption">вероятность перегрева в следующие 10 минут</div>
+          </div>
+          <div class="insight-section"><h3 class="insight-title">Что влияет на риск</h3><ul class="factors" id="factor-list"><li class="factor"><span class="factor-mark"></span>Ожидаем первые данные</li></ul></div>
+          <div class="insight-section">
+            <h3 class="insight-title">Демонстрационный сценарий</h3>
+            <p class="action-copy">Плавно увеличивает температуру, нагрузку и вибрацию выбранного станка. Это учебная симуляция.</p>
+            <button class="danger-button" id="simulate-button" type="button">Симулировать перегрев</button>
+            <div class="event" id="event-message">Система работает в штатном режиме.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+    <section class="view" id="manual-view">
+      <div class="layout">
+        <section class="card form-card">
+          <h2 class="card-title">Ручной ввод телеметрии</h2><p class="card-copy">Измените значения и отправьте один запрос к модели.</p>
+          <form id="telemetry-form">
+            <div class="form-grid">
+              <div class="group-title">Режим работы</div>
+              <label>Диаметр электрода, мм<input name="electrode_diameter_mm" type="number" min="0.1" step="0.1" value="200" required></label>
+              <label>Скорость шпинделя, об/мин<input name="spindle_rpm" type="number" min="0" step="1" value="1834" required></label>
+              <label>Нагрузка, %<input name="load_pct" type="number" min="0" max="100" step="0.1" value="74.9" required></label>
+              <label>Ток двигателя, А<input name="motor_current_a" type="number" min="0" step="0.1" value="21.3" required></label>
+              <label>Давление, бар<input name="pressure_bar" type="number" min="0" step="0.1" value="2.7" required></label>
+              <label>Вибрация RMS<input name="vibration_rms" type="number" min="0" step="0.01" value="2.6" required></label>
+              <div class="group-title">Температуры</div>
+              <label>Температура воздуха, °C<input name="ambient_temp_c" type="number" step="0.1" value="19.5" required></label>
+              <label>Температура охлаждения, °C<input name="coolant_temp_c" type="number" step="0.1" value="37.3" required></label>
+              <label>Температура подшипника, °C<input name="bearing_temp_c" type="number" step="0.1" value="65" required></label>
+              <label>Температура шпинделя, °C<input name="spindle_temp_c" type="number" step="0.1" value="70.8" required></label>
+              <label>Рост температуры, °C/мин<input name="temp_rate_c_per_min" type="number" step="0.01" value="0" required></label>
+              <div class="group-title">Обслуживание</div>
+              <label>Часы после обслуживания<input name="operating_hours_since_service" type="number" min="0" step="0.1" value="115.3" required></label>
+              <label>Износ инструмента, %<input name="tool_wear_pct" type="number" min="0" max="100" step="0.1" value="7.7" required></label>
+            </div>
+            <div class="actions"><button class="primary" id="submit-button" type="submit">Рассчитать риск</button><button class="secondary" type="reset">Вернуть пример</button></div>
+          </form>
+        </section>
+        <aside class="card result-card" id="result-card" aria-live="polite">
+          <div class="result-top">
+            <div class="status"><span class="dot"></span><span id="status-text">Ожидает расчёта</span></div>
+            <div class="probability" id="probability">—</div><div class="probability-label">вероятность перегрева</div>
+            <div class="meter"><div class="meter-fill" id="meter-fill"></div></div><div class="threshold" id="threshold">Порог предупреждения: 68%</div>
+          </div>
+          <div class="message" id="result-message">Заполните показатели и нажмите «Рассчитать риск».</div>
+          <p class="disclaimer">Учебная модель на синтетических данных. Результат нельзя использовать для управления реальным оборудованием.</p>
+        </aside>
+      </div>
+    </section>
+    <p class="footer-note">Демонстрационный проект · синтетические данные · модель не управляет оборудованием</p>
   </main>
-
   <script>
-    const form = document.querySelector('#telemetry-form');
-    const card = document.querySelector('#result-card');
-    const button = document.querySelector('#submit-button');
-    const probabilityNode = document.querySelector('#probability');
-    const statusNode = document.querySelector('#status-text');
-    const messageNode = document.querySelector('#result-message');
-    const meterNode = document.querySelector('#meter-fill');
-    const thresholdNode = document.querySelector('#threshold');
-
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      button.disabled = true;
-      button.textContent = 'Расчёт…';
-      card.className = 'card result-card';
-      statusNode.textContent = 'Анализ данных';
-
-      const payload = Object.fromEntries(
-        [...new FormData(form).entries()].map(([key, value]) => [key, Number(value)])
-      );
-
-      try {
-        const response = await fetch('/predict', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.detail?.[0]?.msg || 'Сервер не принял данные');
-
-        const percent = Math.round(result.overheat_probability * 1000) / 10;
-        const threshold = Math.round(result.decision_threshold * 100);
-        card.classList.add(result.warning ? 'danger' : 'safe');
-        statusNode.textContent = result.warning ? 'Повышенный риск' : 'Риск ниже порога';
-        probabilityNode.textContent = `${percent}%`;
-        meterNode.style.width = `${percent}%`;
-        thresholdNode.textContent = `Порог предупреждения: ${threshold}%`;
-        messageNode.textContent = result.warning
-          ? 'Модель обнаружила повышенный риск перегрева в ближайшие 10 минут.'
-          : 'По оценке модели вероятность перегрева сейчас ниже выбранного порога.';
-      } catch (error) {
-        card.classList.add('error');
-        statusNode.textContent = 'Ошибка';
-        probabilityNode.textContent = '—';
-        meterNode.style.width = '0';
-        messageNode.textContent = error.message;
-      } finally {
-        button.disabled = false;
-        button.textContent = 'Рассчитать риск';
+    const threshold = 0.68;
+    const machineConfigs = {
+      'M-01': { zone: 'Линия формования', spindle: 69, bearing: 62, load: 66, vibration: 1.35, wear: 28, hours: 58, rpm: 1780 },
+      'M-02': { zone: 'Участок обработки', spindle: 79, bearing: 72, load: 81, vibration: 2.25, wear: 63, hours: 148, rpm: 1910 },
+      'M-03': { zone: 'Финишная линия', spindle: 72, bearing: 65, load: 71, vibration: 1.7, wear: 42, hours: 94, rpm: 1680 },
+    };
+    const machines = Object.fromEntries(Object.entries(machineConfigs).map(([id, config]) => [id, { id, ...config, tempRate: .08, risk: 0, history: Array(20).fill(0), incidentStep: null }]));
+    let selectedMachineId = 'M-01';
+    let updating = false;
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const jitter = (amount) => (Math.random() - .5) * amount;
+    const riskClass = (risk) => risk >= threshold ? 'danger' : risk >= .35 ? 'warning' : 'safe';
+    const riskText = (risk) => risk >= threshold ? 'Тревога' : risk >= .35 ? 'Внимание' : 'Норма';
+    const percent = (risk) => `${(risk * 100).toFixed(1)}%`;
+    function telemetry(machine) {
+      return { electrode_diameter_mm: 200, ambient_temp_c: 20.5, spindle_rpm: machine.rpm, load_pct: clamp(machine.load, 0, 100), motor_current_a: clamp(8 + machine.load * .18, 0, 30), vibration_rms: clamp(machine.vibration, 0, 4.5), coolant_temp_c: clamp(29 + machine.spindle * .12, 20, 48), pressure_bar: 2.8, operating_hours_since_service: machine.hours, tool_wear_pct: clamp(machine.wear, 0, 100), bearing_temp_c: machine.bearing, spindle_temp_c: machine.spindle, temp_rate_c_per_min: machine.tempRate };
+    }
+    function advance(machine) {
+      const base = machineConfigs[machine.id];
+      if (machine.incidentStep !== null) {
+        machine.incidentStep += 1;
+        const step = machine.incidentStep;
+        machine.spindle = clamp(base.spindle + step * 3.2 + jitter(.8), 0, 112);
+        machine.bearing = clamp(base.bearing + step * 2.5 + jitter(.6), 0, 101);
+        machine.load = clamp(base.load + step * 2.4, 0, 98);
+        machine.vibration = clamp(base.vibration + step * .18, 0, 4.3);
+        machine.tempRate = clamp(.25 + step * .22, 0, 3.4);
+        machine.wear = clamp(base.wear + step * 1.5, 0, 96);
+      } else {
+        machine.spindle = base.spindle + jitter(1.1); machine.bearing = base.bearing + jitter(.8); machine.load = base.load + jitter(2.2); machine.vibration = base.vibration + jitter(.1); machine.tempRate = .08 + jitter(.08);
       }
+      machine.hours += .03;
+    }
+    async function score(machine) {
+      const response = await fetch('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(telemetry(machine)) });
+      if (!response.ok) throw new Error('API временно недоступен');
+      const result = await response.json();
+      machine.risk = result.overheat_probability; machine.history.push(machine.risk); machine.history = machine.history.slice(-20);
+    }
+    function renderFleet() {
+      document.querySelector('#fleet-grid').innerHTML = Object.values(machines).map((machine) => {
+        const state = riskClass(machine.risk);
+        return `<button class="machine-card ${state} ${machine.id === selectedMachineId ? 'selected' : ''}" data-machine="${machine.id}" type="button"><div class="machine-card-top"><div><div class="machine-name">Станок ${machine.id}</div><div class="machine-zone">${machine.zone}</div></div><span class="mini-status">${riskText(machine.risk)}</span></div><div class="risk-value">${percent(machine.risk)}</div></button>`;
+      }).join('');
+      document.querySelectorAll('[data-machine]').forEach((node) => node.addEventListener('click', () => { selectedMachineId = node.dataset.machine; renderFleet(); renderSelected(); }));
+    }
+    function factorsFor(machine) {
+      const factors = [];
+      if (machine.tempRate > .8) factors.push(`Температура растёт на ${machine.tempRate.toFixed(1)} °C/мин`);
+      if (machine.spindle > 84) factors.push(`Температура шпинделя ${machine.spindle.toFixed(1)} °C`);
+      if (machine.bearing > 78) factors.push(`Температура подшипника ${machine.bearing.toFixed(1)} °C`);
+      if (machine.wear > 70) factors.push(`Износ инструмента ${machine.wear.toFixed(0)}%`);
+      if (machine.hours > 160) factors.push(`${machine.hours.toFixed(0)} часов после обслуживания`);
+      if (machine.load > 88) factors.push(`Высокая нагрузка ${machine.load.toFixed(0)}%`);
+      return factors.length ? factors.slice(0, 3) : ['Показатели находятся в рабочем диапазоне', 'Резких изменений температуры не обнаружено'];
+    }
+    function renderSelected() {
+      const machine = machines[selectedMachineId]; const state = riskClass(machine.risk);
+      document.querySelector('#monitor-title').textContent = `Станок ${machine.id}`;
+      document.querySelector('#monitor-subtitle').textContent = `${machine.zone} · текущая смена`;
+      document.querySelector('#metric-spindle').textContent = `${machine.spindle.toFixed(1)} °C`;
+      document.querySelector('#metric-bearing').textContent = `${machine.bearing.toFixed(1)} °C`;
+      document.querySelector('#metric-load').textContent = `${machine.load.toFixed(0)}%`;
+      document.querySelector('#metric-vibration').textContent = machine.vibration.toFixed(2);
+      const riskNode = document.querySelector('#live-risk'); riskNode.className = `big-risk ${state}`; riskNode.textContent = percent(machine.risk);
+      const status = document.querySelector('#live-status'); status.className = `status ${state}`; status.querySelector('span:last-child').textContent = riskText(machine.risk);
+      document.querySelector('#factor-list').innerHTML = factorsFor(machine).map((item) => `<li class="factor"><span class="factor-mark"></span>${item}</li>`).join('');
+      const event = document.querySelector('#event-message');
+      if (machine.incidentStep !== null) event.textContent = machine.risk >= threshold ? `⚠ ${new Date().toLocaleTimeString('ru-RU')} — порог риска превышен. Рекомендуется проверить охлаждение и подготовить контролируемую остановку.` : 'Сценарий запущен: модель анализирует ухудшающуюся телеметрию…';
+      else event.textContent = state === 'warning' ? 'Рекомендуется усилить наблюдение за показателями.' : 'Система работает в штатном режиме.';
+      const scenarioButton = document.querySelector('#simulate-button');
+      scenarioButton.classList.toggle('running', machine.incidentStep !== null);
+      scenarioButton.textContent = machine.incidentStep !== null ? 'Вернуть станок в норму' : 'Симулировать перегрев';
+      drawChart(machine.history);
+    }
+    function drawChart(history) {
+      const canvas = document.querySelector('#risk-chart'); const box = canvas.getBoundingClientRect(); const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, box.width * ratio); canvas.height = Math.max(1, box.height * ratio);
+      const ctx = canvas.getContext('2d'); ctx.scale(ratio, ratio); const width = box.width; const height = box.height; const pad = 18; ctx.clearRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(146,167,192,.15)'; ctx.lineWidth = 1;
+      [0, .25, .5, .75, 1].forEach((level) => { const y = pad + (1 - level) * (height - pad * 2); ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke(); });
+      const thresholdY = pad + (1 - threshold) * (height - pad * 2); ctx.setLineDash([6, 6]); ctx.strokeStyle = 'rgba(255,107,112,.65)'; ctx.beginPath(); ctx.moveTo(pad, thresholdY); ctx.lineTo(width - pad, thresholdY); ctx.stroke(); ctx.setLineDash([]);
+      if (history.length < 2) return;
+      const points = history.map((value, index) => ({ x: pad + index * (width - pad * 2) / (history.length - 1), y: pad + (1 - value) * (height - pad * 2) }));
+      const gradient = ctx.createLinearGradient(0, 0, width, 0); gradient.addColorStop(0, '#36d8c4'); gradient.addColorStop(.7, '#ffc761'); gradient.addColorStop(1, '#ff6b70');
+      ctx.strokeStyle = gradient; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.beginPath(); points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke();
+      const area = ctx.createLinearGradient(0, pad, 0, height); area.addColorStop(0, 'rgba(54,216,196,.28)'); area.addColorStop(1, 'rgba(54,216,196,0)'); ctx.lineTo(points.at(-1).x, height - pad); ctx.lineTo(points[0].x, height - pad); ctx.closePath(); ctx.fillStyle = area; ctx.fill();
+    }
+    async function updateFleet() {
+      if (updating || document.hidden) return; updating = true;
+      try {
+        Object.values(machines).forEach(advance); await Promise.all(Object.values(machines).map(score)); renderFleet(); renderSelected(); document.querySelector('#live-clock').textContent = new Date().toLocaleTimeString('ru-RU');
+      } catch (error) { document.querySelector('#event-message').textContent = error.message; }
+      finally { updating = false; }
+    }
+    document.querySelector('#simulate-button').addEventListener('click', () => {
+      const machine = machines[selectedMachineId];
+      if (machine.incidentStep === null) {
+        machine.incidentStep = 0;
+        document.querySelector('#event-message').textContent = 'Сценарий запущен: показатели начнут ухудшаться при каждом обновлении.';
+      } else {
+        const base = machineConfigs[machine.id];
+        Object.assign(machine, { ...base, tempRate: .08, incidentStep: null });
+        document.querySelector('#event-message').textContent = 'Сценарий завершён. Станок возвращён к рабочим показателям.';
+      }
+      renderSelected(); updateFleet();
+    });
+    document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-view]').forEach((item) => item.classList.toggle('active', item === button));
+      document.querySelectorAll('.view').forEach((view) => view.classList.toggle('active', view.id === button.dataset.view));
+      if (button.dataset.view === 'live-view') window.requestAnimationFrame(renderSelected);
+    }));
+    window.addEventListener('resize', renderSelected); renderFleet(); renderSelected(); updateFleet(); window.setInterval(updateFleet, 2200);
+    const form = document.querySelector('#telemetry-form'); const resultCard = document.querySelector('#result-card'); const submitButton = document.querySelector('#submit-button'); const probabilityNode = document.querySelector('#probability'); const statusNode = document.querySelector('#status-text'); const messageNode = document.querySelector('#result-message'); const meterNode = document.querySelector('#meter-fill'); const thresholdNode = document.querySelector('#threshold');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault(); submitButton.disabled = true; submitButton.textContent = 'Расчёт…'; resultCard.className = 'card result-card'; statusNode.textContent = 'Анализ данных';
+      const payload = Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, Number(value)]));
+      try {
+        const response = await fetch('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const result = await response.json();
+        if (!response.ok) throw new Error(result.detail?.[0]?.msg || 'Сервер не принял данные');
+        const value = Math.round(result.overheat_probability * 1000) / 10; resultCard.classList.add(result.warning ? 'danger' : 'safe'); statusNode.textContent = result.warning ? 'Повышенный риск' : 'Риск ниже порога'; probabilityNode.textContent = `${value}%`; meterNode.style.width = `${value}%`; thresholdNode.textContent = `Порог предупреждения: ${Math.round(result.decision_threshold * 100)}%`; messageNode.textContent = result.warning ? 'Модель обнаружила повышенный риск перегрева в ближайшие 10 минут.' : 'По оценке модели вероятность перегрева сейчас ниже выбранного порога.';
+      } catch (error) { resultCard.classList.add('error'); statusNode.textContent = 'Ошибка'; probabilityNode.textContent = '—'; meterNode.style.width = '0'; messageNode.textContent = error.message; }
+      finally { submitButton.disabled = false; submitButton.textContent = 'Рассчитать риск'; }
     });
   </script>
 </body>
