@@ -3,9 +3,13 @@
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Render](https://img.shields.io/badge/Live_demo-Render-46E3B7?logo=render&logoColor=white)](https://el6-electrode-ml.onrender.com/)
 
 Учебный проект для портфолио Data Scientist / ML Engineer. Модель оценивает
 риск перегрева оборудования в следующие 10 минут по текущей телеметрии.
+
+**[Открыть работающий Live Monitoring](https://el6-electrode-ml.onrender.com/)** ·
+**[Открыть документацию API](https://el6-electrode-ml.onrender.com/docs)**
 
 ## Что можно посмотреть
 
@@ -121,6 +125,8 @@ docker run --rm -p 127.0.0.1:8000:8000 el6-electrode-ml
 удаляет его остановленный экземпляр; Docker-образ остаётся.
 
 ## Публичный запуск на Render
+
+Работающая версия: **https://el6-electrode-ml.onrender.com/**
 
 В корне репозитория находится `render.yaml`: он описывает Docker-сервис,
 бесплатный план и проверку `/health`. После отправки файлов в GitHub нажмите
