@@ -10,3 +10,6 @@ mlruns/
 mlflow.db
 mlartifacts/
 storage/*.db*
+
+# Personal study notes
+PROJECT_GUIDE_RU.md
