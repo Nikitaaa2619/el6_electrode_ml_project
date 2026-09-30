@@ -1,4 +1,4 @@
-"""Exploratory analysis for the synthetic electrode telemetry dataset.
+"""Exploratory analysis for the EL6 electrode-machine telemetry dataset.
 
 Run from the project root:
     python notebooks/01_eda.py
