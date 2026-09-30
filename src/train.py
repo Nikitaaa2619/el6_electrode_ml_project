@@ -1,3 +1,5 @@
+"""Train and evaluate the EL6 electrode-machine overheat model."""
+
 from __future__ import annotations
 
 import os

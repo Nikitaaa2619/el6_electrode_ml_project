@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# Generated training data and local model artifacts
 data/*.csv
 models/*.joblib
 mlruns/

@@ -1,5 +1,7 @@
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.title="EL6 Electrode Machine Overheat Monitor"
+
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

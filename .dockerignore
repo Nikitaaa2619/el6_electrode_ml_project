@@ -3,6 +3,7 @@
 __pycache__
 *.pyc
 .DS_Store
+# Docker reproduces the electrode training data during the build
 data
 models
 reports
