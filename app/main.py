@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from app.notifications import AlertNotifier
 from app.storage import MonitoringStore
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ FEATURES = ARTIFACT["features"]
 DECISION_THRESHOLD = ARTIFACT.get("threshold", 0.5)
 TRAINING_PROFILE = ARTIFACT.get("training_profile", {})
 STORE = MonitoringStore(ROOT)
+NOTIFIER = AlertNotifier()
 
 app = FastAPI(title="Industrial Overheat Prediction API")
 
@@ -59,11 +61,12 @@ def health() -> dict:
         "status": "ok",
         "message": "Industrial overheat prediction API",
         "monitoring_database": STORE.backend,
+        "webhook_configured": NOTIFIER.configured,
     }
 
 
 @app.post("/predict")
-def predict(payload: Telemetry) -> dict:
+def predict(payload: Telemetry, background_tasks: BackgroundTasks) -> dict:
     values = payload.model_dump()
     machine_id = values.pop("machine_id", None)
     row = pd.DataFrame([values])[FEATURES]
@@ -74,12 +77,25 @@ def predict(payload: Telemetry) -> dict:
         threshold=DECISION_THRESHOLD,
         features={key: float(values[key]) for key in FEATURES},
     )
+    if alert_created:
+        background_tasks.add_task(
+            NOTIFIER.send,
+            {
+                "event": "electrode_machine_overheat_alert",
+                "prediction_id": prediction_id,
+                "machine_id": machine_id,
+                "risk": round(probability, 4),
+                "threshold": DECISION_THRESHOLD,
+                "recommended_action": "Acknowledge and follow the approved overheat response playbook.",
+            },
+        )
     return {
         "prediction_id": prediction_id,
         "overheat_probability": round(probability, 4),
         "decision_threshold": DECISION_THRESHOLD,
         "warning": probability >= DECISION_THRESHOLD,
         "alert_created": alert_created,
+        "webhook_configured": NOTIFIER.configured,
         "note": "Educational simulation only; not a real machine-control system.",
     }
 

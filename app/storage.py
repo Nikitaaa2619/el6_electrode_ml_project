@@ -70,7 +70,7 @@ class MonitoringStore:
         Base.metadata.create_all(self.engine)
         self.backend = "postgresql" if url.startswith("postgresql") else "sqlite"
         self.alert_cooldown = timedelta(
-            seconds=int(os.getenv("ALERT_COOLDOWN_SECONDS", "60"))
+            seconds=int(os.getenv("ALERT_COOLDOWN_SECONDS", "900"))
         )
 
     def ping(self) -> None:
