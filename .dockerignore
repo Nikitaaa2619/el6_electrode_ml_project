@@ -3,9 +3,9 @@
 __pycache__
 *.pyc
 .DS_Store
-data/telemetry.csv
-data/raw
+data
 models
+reports
 notebooks
 .github
 mlruns

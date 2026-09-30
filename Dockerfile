@@ -10,8 +10,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src ./src
-COPY data/metropt3_minute.csv.gz data/metropt3_demo.csv ./data/
-RUN mkdir -p models reports/figures \
+RUN mkdir -p data models reports/figures \
+    && python src/generate_data.py \
     && python src/train.py
 
 COPY app ./app

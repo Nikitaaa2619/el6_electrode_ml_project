@@ -3,8 +3,7 @@ __pycache__/
 *.pyc
 .DS_Store
 
-data/telemetry.csv
-data/raw/
+data/*.csv
 models/*.joblib
 mlruns/
 mlflow.db

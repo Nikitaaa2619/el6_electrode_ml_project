@@ -70,7 +70,7 @@ class MonitoringStore:
         Base.metadata.create_all(self.engine)
         self.backend = "postgresql" if url.startswith("postgresql") else "sqlite"
         self.alert_cooldown = timedelta(
-            seconds=int(os.getenv("ALERT_COOLDOWN_SECONDS", "900"))
+            seconds=int(os.getenv("ALERT_COOLDOWN_SECONDS", "60"))
         )
 
     def ping(self) -> None:
@@ -117,7 +117,7 @@ class MonitoringStore:
                             created_at=now,
                             machine_id=machine_id,
                             probability=probability,
-                            message="Обнаружено состояние, похожее на документированный режим утечки воздуха.",
+                            message="Порог риска превышен. Проверьте охлаждение и нагрузку.",
                         )
                     )
                     alert_created = True
@@ -146,24 +146,24 @@ class MonitoringStore:
                 "machine_id": alert.machine_id,
                 "probability": round(alert.probability, 4),
                 "message": alert.message,
-                "actual_failure": feedback.get(alert.prediction_id),
+                "actual_overheat": feedback.get(alert.prediction_id),
             }
             for alert in alerts
         ]
 
-    def save_feedback(self, prediction_id: str, actual_failure: bool) -> None:
+    def save_feedback(self, prediction_id: str, actual_overheat: bool) -> None:
         with self.sessions() as session:
             if session.get(Prediction, prediction_id) is None:
                 raise KeyError(prediction_id)
             item = session.get(Feedback, prediction_id)
             if item:
-                item.actual_overheat = actual_failure
+                item.actual_overheat = actual_overheat
                 item.recorded_at = datetime.now(timezone.utc)
             else:
                 session.add(
                     Feedback(
                         prediction_id=prediction_id,
-                        actual_overheat=actual_failure,
+                        actual_overheat=actual_overheat,
                         recorded_at=datetime.now(timezone.utc),
                     )
                 )
