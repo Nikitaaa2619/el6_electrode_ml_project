@@ -7,9 +7,12 @@ import tempfile
 os.environ.setdefault(
     "MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "el6-matplotlib")
 )
+os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 
 import joblib
 import matplotlib
+import mlflow
+import mlflow.sklearn
 import numpy as np
 import pandas as pd
 
@@ -19,6 +22,7 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     average_precision_score,
+    accuracy_score,
     classification_report,
     confusion_matrix,
     f1_score,
@@ -34,6 +38,8 @@ REPORTS = ROOT / "reports"
 FIGURES = REPORTS / "figures"
 THRESHOLD_REPORT = REPORTS / "threshold_analysis.csv"
 FORECAST_HORIZON_MINUTES = 10
+FALSE_POSITIVE_COST = float(os.getenv("FALSE_POSITIVE_COST", "1"))
+FALSE_NEGATIVE_COST = float(os.getenv("FALSE_NEGATIVE_COST", "5"))
 
 FEATURES = [
     "electrode_diameter_mm",
@@ -71,6 +77,10 @@ def build_threshold_table(y_true: pd.Series, proba: np.ndarray) -> pd.DataFrame:
                 "false_negative": int(false_negative),
                 "true_positive": int(true_positive),
                 "true_negative": int(true_negative),
+                "expected_cost": float(
+                    false_positive * FALSE_POSITIVE_COST
+                    + false_negative * FALSE_NEGATIVE_COST
+                ),
             }
         )
     return pd.DataFrame(rows)
@@ -153,18 +163,24 @@ def main() -> None:
 
     validation_proba = model.predict_proba(X_validation)[:, 1]
     threshold_table = build_threshold_table(y_validation, validation_proba)
-    best_row = threshold_table.loc[threshold_table["f1"].idxmax()]
+    # A missed overheat is assumed to cost five times more than a false alarm.
+    # These values are explicit business inputs and can be overridden by env vars.
+    best_row = threshold_table.sort_values(
+        ["expected_cost", "f1"], ascending=[True, False]
+    ).iloc[0]
     decision_threshold = float(best_row["threshold"])
 
     REPORTS.mkdir(parents=True, exist_ok=True)
     threshold_table.to_csv(THRESHOLD_REPORT, index=False)
     save_threshold_plot(threshold_table, decision_threshold)
 
-    print("=== Threshold selection on validation ===")
+    print("=== Cost-sensitive threshold selection on validation ===")
     print(
         f"Selected threshold: {decision_threshold:.2f} | "
         f"precision={best_row['precision']:.3f}, "
-        f"recall={best_row['recall']:.3f}, f1={best_row['f1']:.3f}"
+        f"recall={best_row['recall']:.3f}, f1={best_row['f1']:.3f}, "
+        f"cost={best_row['expected_cost']:.0f} "
+        f"(FN={FALSE_NEGATIVE_COST:g}, FP={FALSE_POSITIVE_COST:g})"
     )
 
     proba = model.predict_proba(X_test)[:, 1]
@@ -183,17 +199,75 @@ def main() -> None:
     print("=== Feature importance ===")
     print(importance.head(10).to_string())
 
-    MODEL.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(
-        {
-            "model": model,
-            "features": FEATURES,
-            "threshold": decision_threshold,
-        },
-        MODEL,
+    training_profile = {
+        feature: {
+            "mean": float(X_train[feature].mean()),
+            "std": float(X_train[feature].std()),
+        }
+        for feature in FEATURES
+    }
+    test_metrics = {
+        "test_accuracy": accuracy_score(y_test, pred),
+        "test_precision": precision_score(y_test, pred, zero_division=0),
+        "test_recall": recall_score(y_test, pred, zero_division=0),
+        "test_f1": f1_score(y_test, pred, zero_division=0),
+        "test_roc_auc": roc_auc_score(y_test, proba),
+        "test_pr_auc": average_precision_score(y_test, proba),
+        "validation_expected_cost": float(best_row["expected_cost"]),
+    }
+
+    tracking_uri = os.getenv(
+        "MLFLOW_TRACKING_URI", f"sqlite:///{(ROOT / 'mlflow.db').resolve()}"
     )
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT_NAME", "el6-overheat"))
+    with mlflow.start_run(run_name="random-forest-cost-sensitive") as run:
+        mlflow.log_params(
+            {
+                "model": "RandomForestClassifier",
+                "n_estimators": 250,
+                "max_depth": 12,
+                "min_samples_leaf": 5,
+                "class_weight": "balanced",
+                "random_state": 42,
+                "false_positive_cost": FALSE_POSITIVE_COST,
+                "false_negative_cost": FALSE_NEGATIVE_COST,
+                "decision_threshold": decision_threshold,
+                "forecast_horizon_minutes": FORECAST_HORIZON_MINUTES,
+            }
+        )
+        mlflow.log_metrics(test_metrics)
+        signature = mlflow.models.infer_signature(
+            X_train.head(5), model.predict_proba(X_train.head(5))[:, 1]
+        )
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            name="overheat_model",
+            signature=signature,
+            input_example=X_train.head(3),
+            serialization_format="cloudpickle",
+        )
+        mlflow.log_artifact(str(THRESHOLD_REPORT), artifact_path="reports")
+        mlflow.log_artifact(
+            str(FIGURES / "06_threshold_tradeoff.png"), artifact_path="reports"
+        )
+
+        MODEL.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(
+            {
+                "model": model,
+                "features": FEATURES,
+                "threshold": decision_threshold,
+                "false_positive_cost": FALSE_POSITIVE_COST,
+                "false_negative_cost": FALSE_NEGATIVE_COST,
+                "training_profile": training_profile,
+                "mlflow_run_id": run.info.run_id,
+            },
+            MODEL,
+        )
     print(f"Saved model to {MODEL}")
     print(f"Saved threshold analysis to {THRESHOLD_REPORT}")
+    print(f"MLflow run: {run.info.run_id} ({tracking_uri})")
 
 
 if __name__ == "__main__":

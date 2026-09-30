@@ -124,10 +124,28 @@
     .result-card.danger .status { color: var(--danger); background: rgba(255,107,112,.1); }
     .result-card.danger .probability { color: var(--danger); }
     .result-card.error .status, .result-card.error .probability { color: var(--warning); }
+    .monitoring-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .monitoring-stat { padding: 18px; }
+    .monitoring-stat .metric-value { font-size: 28px; }
+    .monitoring-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, .7fr); gap: 20px; align-items: start; }
+    .table-card, .quality-card { padding: 22px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 12px; }
+    th { color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+    .empty-row { color: var(--muted); text-align: center; }
+    .feedback-actions { display: flex; gap: 6px; }
+    .feedback-actions button { padding: 7px 9px; color: var(--text); background: #1b304a; font-size: 11px; }
+    .feedback-saved { color: var(--safe); }
+    .quality-list { display: grid; gap: 12px; margin-top: 16px; }
+    .quality-row { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
+    .quality-row strong { color: var(--text); }
+    .drift-list { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.6; }
     .footer-note { margin-top: 18px; color: var(--muted); font-size: 11px; text-align: center; }
     @media (max-width: 920px) {
-      .live-layout, .layout { grid-template-columns: 1fr; }
+      .live-layout, .layout, .monitoring-layout { grid-template-columns: 1fr; }
       .insight-card, .result-card { position: static; }
+      .monitoring-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -142,6 +160,7 @@
       .actions { flex-direction: column; }
       .view-switcher { display: flex; }
       .view-switcher button { flex: 1; font-size: 12px; }
+      .monitoring-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -157,6 +176,7 @@
     </header>
     <nav class="view-switcher" aria-label="Режим интерфейса">
       <button class="active" type="button" data-view="live-view">● Live Monitoring</button>
+      <button type="button" data-view="monitoring-view">Мониторинг модели</button>
       <button type="button" data-view="manual-view">Ручной прогноз</button>
     </nav>
     <section class="view active" id="live-view">
@@ -192,6 +212,44 @@
         </aside>
       </div>
     </section>
+    <section class="view" id="monitoring-view">
+      <div class="section-heading">
+        <div><h2>Мониторинг модели</h2><p class="monitor-subtitle">Прогнозы и качество за последние 24 часа</p></div>
+        <button class="secondary" id="refresh-monitoring" type="button">Обновить</button>
+      </div>
+      <div class="monitoring-grid">
+        <div class="card monitoring-stat"><div class="metric-label">ЗАПРОСЫ</div><div class="metric-value" id="monitor-requests">—</div></div>
+        <div class="card monitoring-stat"><div class="metric-label">ДОЛЯ ТРЕВОГ</div><div class="metric-value" id="monitor-warning-rate">—</div></div>
+        <div class="card monitoring-stat"><div class="metric-label">СРЕДНИЙ РИСК</div><div class="metric-value" id="monitor-average-risk">—</div></div>
+        <div class="card monitoring-stat"><div class="metric-label">P95 РИСКА</div><div class="metric-value" id="monitor-p95">—</div></div>
+        <div class="card monitoring-stat"><div class="metric-label">DATA DRIFT</div><div class="metric-value" id="monitor-drift">—</div></div>
+      </div>
+      <div class="monitoring-layout">
+        <section class="card table-card">
+          <h3 class="insight-title">История тревог</h3>
+          <p class="card-copy">Тревоги хранятся в базе данных и не пропадают после перезапуска сервиса.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Время</th><th>Станок</th><th>Риск</th><th>Результат проверки</th></tr></thead>
+              <tbody id="alerts-body"><tr><td class="empty-row" colspan="4">Загрузка…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <aside class="card quality-card">
+          <h3 class="insight-title">Качество по обратной связи</h3>
+          <p class="action-copy">После тревоги отметьте, подтвердился ли перегрев. Эти метки дают честные production-метрики.</p>
+          <div class="quality-list">
+            <div class="quality-row"><span>Размечено</span><strong id="quality-count">0</strong></div>
+            <div class="quality-row"><span>Accuracy</span><strong id="quality-accuracy">—</strong></div>
+            <div class="quality-row"><span>Precision</span><strong id="quality-precision">—</strong></div>
+            <div class="quality-row"><span>Recall</span><strong id="quality-recall">—</strong></div>
+            <div class="quality-row"><span>F1</span><strong id="quality-f1">—</strong></div>
+          </div>
+          <h3 class="insight-title" style="margin-top:24px">Сдвиг данных</h3>
+          <ul class="drift-list" id="drift-list"><li>Нужно минимум 20 прогнозов.</li></ul>
+        </aside>
+      </div>
+    </section>
     <section class="view" id="manual-view">
       <div class="layout">
         <section class="card form-card">
@@ -222,7 +280,7 @@
           <div class="result-top">
             <div class="status"><span class="dot"></span><span id="status-text">Ожидает расчёта</span></div>
             <div class="probability" id="probability">—</div><div class="probability-label">вероятность перегрева</div>
-            <div class="meter"><div class="meter-fill" id="meter-fill"></div></div><div class="threshold" id="threshold">Порог предупреждения: 68%</div>
+            <div class="meter"><div class="meter-fill" id="meter-fill"></div></div><div class="threshold" id="threshold">Порог предупреждения: 46%</div>
           </div>
           <div class="message" id="result-message">Заполните показатели и нажмите «Рассчитать риск».</div>
           <p class="disclaimer">Учебная модель на синтетических данных. Результат нельзя использовать для управления реальным оборудованием.</p>
@@ -232,7 +290,7 @@
     <p class="footer-note">Демонстрационный проект · синтетические данные · модель не управляет оборудованием</p>
   </main>
   <script>
-    let threshold = 0.68;
+    let threshold = 0.46;
     const machineConfigs = {
       'M-01': { zone: 'Линия формования', spindle: 69, bearing: 62, load: 66, vibration: 1.35, wear: 28, hours: 58, rpm: 1780 },
       'M-02': { zone: 'Участок обработки', spindle: 79, bearing: 72, load: 81, vibration: 2.25, wear: 63, hours: 148, rpm: 1910 },
@@ -247,7 +305,7 @@
     const riskText = (risk) => risk >= threshold ? 'Тревога' : risk >= .35 ? 'Внимание' : 'Норма';
     const percent = (risk) => `${(risk * 100).toFixed(1)}%`;
     function telemetry(machine) {
-      return { electrode_diameter_mm: 200, ambient_temp_c: 20.5, spindle_rpm: machine.rpm, load_pct: clamp(machine.load, 0, 100), motor_current_a: clamp(8 + machine.load * .18, 0, 30), vibration_rms: clamp(machine.vibration, 0, 4.5), coolant_temp_c: clamp(29 + machine.spindle * .12, 20, 48), pressure_bar: 2.8, operating_hours_since_service: machine.hours, tool_wear_pct: clamp(machine.wear, 0, 100), bearing_temp_c: machine.bearing, spindle_temp_c: machine.spindle, temp_rate_c_per_min: machine.tempRate };
+      return { machine_id: machine.id, electrode_diameter_mm: 200, ambient_temp_c: 20.5, spindle_rpm: machine.rpm, load_pct: clamp(machine.load, 0, 100), motor_current_a: clamp(8 + machine.load * .18, 0, 30), vibration_rms: clamp(machine.vibration, 0, 4.5), coolant_temp_c: clamp(29 + machine.spindle * .12, 20, 48), pressure_bar: 2.8, operating_hours_since_service: machine.hours, tool_wear_pct: clamp(machine.wear, 0, 100), bearing_temp_c: machine.bearing, spindle_temp_c: machine.spindle, temp_rate_c_per_min: machine.tempRate };
     }
     function advance(machine) {
       const base = machineConfigs[machine.id];
@@ -329,6 +387,48 @@
       } catch (error) { document.querySelector('#event-message').textContent = error.message; }
       finally { updating = false; }
     }
+    const metricValue = (value) => value === null || value === undefined ? '—' : `${(value * 100).toFixed(1)}%`;
+    async function saveFeedback(predictionId, actualOverheat) {
+      const response = await fetch('/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prediction_id: predictionId, actual_overheat: actualOverheat }) });
+      if (!response.ok) throw new Error('Не удалось сохранить результат проверки');
+      await loadMonitoring();
+    }
+    async function loadMonitoring() {
+      try {
+        const [summaryResponse, alertsResponse] = await Promise.all([fetch('/monitoring/summary'), fetch('/alerts?limit=20')]);
+        if (!summaryResponse.ok || !alertsResponse.ok) throw new Error('Мониторинг временно недоступен');
+        const summary = await summaryResponse.json(); const alerts = await alertsResponse.json();
+        document.querySelector('#monitor-requests').textContent = summary.request_count;
+        document.querySelector('#monitor-warning-rate').textContent = metricValue(summary.warning_rate);
+        document.querySelector('#monitor-average-risk').textContent = metricValue(summary.average_probability);
+        document.querySelector('#monitor-p95').textContent = metricValue(summary.p95_probability);
+        const driftLabels = { stable: 'СТАБИЛЬНО', drift_detected: 'СДВИГ', insufficient_data: 'МАЛО ДАННЫХ' };
+        document.querySelector('#monitor-drift').textContent = driftLabels[summary.drift.status] || summary.drift.status;
+        const quality = summary.quality;
+        document.querySelector('#quality-count').textContent = quality.labeled_count;
+        document.querySelector('#quality-accuracy').textContent = metricValue(quality.accuracy);
+        document.querySelector('#quality-precision').textContent = metricValue(quality.precision);
+        document.querySelector('#quality-recall').textContent = metricValue(quality.recall);
+        document.querySelector('#quality-f1').textContent = metricValue(quality.f1);
+        document.querySelector('#drift-list').innerHTML = summary.drift.features.length
+          ? summary.drift.features.map((item) => `<li>${item.feature}: среднее ${item.current_mean}, обучение ${item.training_mean}, сдвиг ${item.z_shift}σ</li>`).join('')
+          : `<li>${summary.drift.status === 'stable' ? 'Значимого сдвига признаков не обнаружено.' : `Нужно минимум 20 прогнозов; сейчас ${summary.drift.sample_size}.`}</li>`;
+        document.querySelector('#alerts-body').innerHTML = alerts.items.length ? alerts.items.map((item) => {
+          const feedback = item.actual_overheat === null
+            ? `<div class="feedback-actions"><button type="button" data-feedback="true" data-prediction="${item.prediction_id}">Подтвердился</button><button type="button" data-feedback="false" data-prediction="${item.prediction_id}">Ложная тревога</button></div>`
+            : `<span class="feedback-saved">${item.actual_overheat ? 'Перегрев подтверждён' : 'Ложная тревога'}</span>`;
+          return `<tr><td>${new Date(item.created_at).toLocaleString('ru-RU')}</td><td>${item.machine_id}</td><td>${percent(item.probability)}</td><td>${feedback}</td></tr>`;
+        }).join('') : '<tr><td class="empty-row" colspan="4">Тревог пока нет. Запустите сценарий перегрева.</td></tr>';
+        document.querySelectorAll('[data-feedback]').forEach((button) => button.addEventListener('click', async () => {
+          button.disabled = true;
+          try { await saveFeedback(button.dataset.prediction, button.dataset.feedback === 'true'); }
+          catch (error) { button.textContent = error.message; }
+        }));
+      } catch (error) {
+        document.querySelector('#alerts-body').innerHTML = `<tr><td class="empty-row" colspan="4">${error.message}</td></tr>`;
+      }
+    }
+    document.querySelector('#refresh-monitoring').addEventListener('click', loadMonitoring);
     document.querySelector('#simulate-button').addEventListener('click', () => {
       const machine = machines[selectedMachineId];
       if (machine.incidentStep === null) {
@@ -345,8 +445,9 @@
       document.querySelectorAll('[data-view]').forEach((item) => item.classList.toggle('active', item === button));
       document.querySelectorAll('.view').forEach((view) => view.classList.toggle('active', view.id === button.dataset.view));
       if (button.dataset.view === 'live-view') window.requestAnimationFrame(renderSelected);
+      if (button.dataset.view === 'monitoring-view') loadMonitoring();
     }));
-    window.addEventListener('resize', renderSelected); renderFleet(); renderSelected(); updateFleet(); window.setInterval(updateFleet, 2200);
+    window.addEventListener('resize', renderSelected); renderFleet(); renderSelected(); updateFleet(); loadMonitoring(); window.setInterval(updateFleet, 2200); window.setInterval(loadMonitoring, 15000);
     const form = document.querySelector('#telemetry-form'); const resultCard = document.querySelector('#result-card'); const submitButton = document.querySelector('#submit-button'); const probabilityNode = document.querySelector('#probability'); const statusNode = document.querySelector('#status-text'); const messageNode = document.querySelector('#result-message'); const meterNode = document.querySelector('#meter-fill'); const thresholdNode = document.querySelector('#threshold');
     form.addEventListener('submit', async (event) => {
       event.preventDefault(); submitButton.disabled = true; submitButton.textContent = 'Расчёт…'; resultCard.className = 'card result-card'; statusNode.textContent = 'Анализ данных';

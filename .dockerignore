@@ -8,3 +8,7 @@ models
 reports
 notebooks
 .github
+mlruns
+mlflow.db
+mlartifacts
+storage

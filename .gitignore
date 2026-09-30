@@ -5,3 +5,7 @@ __pycache__/
 
 data/*.csv
 models/*.joblib
+mlruns/
+mlflow.db
+mlartifacts/
+storage/*.db*

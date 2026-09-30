@@ -7,3 +7,6 @@ seaborn==0.13.2
 fastapi==0.141.1
 uvicorn[standard]==0.54.0
 pydantic==2.13.5
+mlflow==3.16.1
+SQLAlchemy==2.0.54
+psycopg[binary]==3.3.6
